@@ -1,0 +1,18 @@
+{
+  "label": "Super Bowl",
+  "roman": "XLIX",
+  "teams": {
+    "home": {
+      "name": "New England Patriots",
+      "city": "New England",
+      "abbreviation": "NE",
+      "conference": "AFC"
+    },
+    "away": {
+      "name": "Seattle Seahawks",
+      "city": "Seattle",
+      "abbreviation": "SEA",
+      "conference": "NFC"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "sali-bot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "check:superbowl": "node scripts/guard-superbowl-strings.js && npx ts-node scripts/check-superbowl.ts"
+  }
+}

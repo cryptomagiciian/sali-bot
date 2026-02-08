@@ -1,0 +1,22 @@
+# Env and secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# DB and data
+*.db
+watchlist.json
+
+# Node (if any)
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
