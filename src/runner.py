@@ -70,6 +70,11 @@ class WatchlistManager:
                 self.watchlist[ticker] = vertical
         self.save()
 
+    def set_from_discovery(self, discovered: Dict[str, str]) -> None:
+        """Replace watchlist with current discovery (real-time sync). Adds new, removes stale."""
+        self.watchlist = dict(discovered)
+        self.save()
+
 
 # ---------- Webhook notifier ----------
 class DiscordNotifier:
@@ -284,11 +289,11 @@ class SignalEngine:
         self,
         market_map: Dict[str, Dict],
         top_n_override: Optional[int] = None,
-    ) -> Dict[str, List[Signal]]:
+    ) -> Tuple[Dict[str, List[Signal]], Dict[str, str]]:
         """
         Scan all markets, match to categories by keywords, score, take top_n per category.
         Dedupe: if a ticker appears in multiple categories, keep best signal_score and label with all categories.
-        Returns picks_by_category (only tickers passing cooldown are included in the payload).
+        Returns (picks_by_category, discovered) where discovered = ticker -> primary category for watchlist sync.
         """
         # 1) For each market, get (category, matched_keywords) list
         ticker_to_matches: Dict[str, List[Tuple[str, List[str]]]] = defaultdict(list)
@@ -301,6 +306,8 @@ class SignalEngine:
                 title, subtitle, event_ticker, event_name, ticker
             ):
                 ticker_to_matches[ticker].append((cat, matched))
+        # discovered = ticker -> primary category (first matched) for watchlist
+        discovered = {ticker: cat_list[0][0] for ticker, cat_list in ticker_to_matches.items()}
 
         # 2) For each (ticker, category, matched_keywords), compute signal; collect (signal, category)
         candidates: List[Tuple[Signal, str, List[str]]] = []
@@ -352,7 +359,7 @@ class SignalEngine:
             for sig, _ in pairs:
                 if self.check_cooldown(sig.ticker):
                     picks_by_category[cat].append(sig)
-        return picks_by_category
+        return picks_by_category, discovered
 
     def run_loop(self):
         print("Sali (Kalshi Signals) STARTED")
@@ -367,7 +374,9 @@ class SignalEngine:
 
                 if self.config.ENABLE_CATEGORY_LOOP:
                     # Option 2: scan all markets, top_n per category, one aggregated notification
-                    picks_by_category = self.run_category_loop_once(market_map)
+                    picks_by_category, discovered = self.run_category_loop_once(market_map)
+                    # Real-time watchlist sync: replace with current cycle's matching markets (add new, drop stale)
+                    self.watchlist.set_from_discovery(discovered)
                     # Persist signals to DB and notify
                     ts = datetime.now().isoformat()
                     notified = set()
@@ -379,7 +388,7 @@ class SignalEngine:
                                 self.db.update_last_alert(sig.ticker, ts)
                     if not self.config.DRY_RUN and picks_by_category and self.notifier.webhook_url:
                         self.notifier.send_category_picks(picks_by_category, ts)
-                        print(f"[{iteration}] Category loop: sent {sum(len(s) for s in picks_by_category.values())} picks")
+                        print(f"[{iteration}] Category loop: sent {sum(len(s) for s in picks_by_category.values())} picks | Watchlist: {len(self.watchlist.watchlist)} markets")
                 else:
                     # Legacy: watchlist-based loop
                     if iteration % 20 == 1:
