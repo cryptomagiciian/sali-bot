@@ -74,3 +74,4 @@ class Config:
     ENABLE_CATEGORY_LOOP = os.getenv("ENABLE_CATEGORY_LOOP", "true").lower() == "true"
     _top_n = os.getenv("TOP_N_PER_CATEGORY", "").strip()
     TOP_N_PER_CATEGORY = int(_top_n) if _top_n.isdigit() else None  # None = use per-category top_n from category_rules
+    MAX_ORDERBOOKS_PER_CYCLE = int(os.getenv("MAX_ORDERBOOKS_PER_CYCLE", "30"))

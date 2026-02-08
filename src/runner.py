@@ -309,15 +309,28 @@ class SignalEngine:
         # discovered = ticker -> primary category (first matched) for watchlist
         discovered = {ticker: cat_list[0][0] for ticker, cat_list in ticker_to_matches.items()}
 
-        # 2) For each (ticker, category, matched_keywords), compute signal; collect (signal, category)
+        # 2) Preliminary score (no orderbook): volume + open_interest. Sort and take top K tickers only.
+        def preliminary_score(tkr: str) -> int:
+            m = market_map.get(tkr, {})
+            return int(m.get("volume") or 0) + int(m.get("open_interest") or 0)
+
+        tickers_sorted = sorted(
+            ticker_to_matches.keys(),
+            key=preliminary_score,
+            reverse=True,
+        )
+        max_ob = getattr(self.config, "MAX_ORDERBOOKS_PER_CYCLE", 30)
+        tickers_to_fetch = tickers_sorted[:max_ob]
+
+        # 3) Only for top K tickers: fetch orderbook + compute signal
         candidates: List[Tuple[Signal, str, List[str]]] = []
-        for ticker, cat_matched_list in ticker_to_matches.items():
-            # Use first category as vertical for scoring; we'll attach all categories to signal later
+        for ticker in tickers_to_fetch:
+            cat_matched_list = ticker_to_matches[ticker]
             category = cat_matched_list[0][0]
             all_matched = []
             for _, mkw in cat_matched_list:
                 all_matched.extend(mkw)
-            all_matched = list(dict.fromkeys(all_matched))  # dedupe order-preserving
+            all_matched = list(dict.fromkeys(all_matched))
             all_cats = list(dict.fromkeys(c[0] for c in cat_matched_list))
             signal = self.process_market(
                 ticker,
@@ -327,7 +340,6 @@ class SignalEngine:
                 categories=all_cats,
             )
             if signal:
-                # Attach all categories and combined matched keywords
                 signal.categories = all_cats
                 signal.matched_keywords = all_matched
                 candidates.append((signal, category, all_matched))
